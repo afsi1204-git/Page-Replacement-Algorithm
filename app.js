@@ -127,133 +127,9 @@ function simulateOptimal(reference, frameCount) {
   return { steps, hits, faults };
 }
 
-function simulateSecondChance(reference, frameCount) {
-  const frames = Array(frameCount).fill("-");
-  const refBits = Array(frameCount).fill(0);
-  const steps = [];
-  let pointer = 0;
-  let hits = 0;
-  let faults = 0;
 
-  reference.forEach((request) => {
-    const page = request.page;
-    const hitIndex = frames.indexOf(page);
-    const hit = hitIndex !== -1;
 
-    if (hit) {
-      hits += 1;
-      refBits[hitIndex] = 1;
-    } else {
-      faults += 1;
-      while (refBits[pointer] === 1) {
-        refBits[pointer] = 0;
-        pointer = (pointer + 1) % frameCount;
-      }
-      frames[pointer] = page;
-      refBits[pointer] = 1;
-      pointer = (pointer + 1) % frameCount;
-    }
-
-    steps.push({ page: formatRequest(request), hit, frames: [...frames] });
-  });
-
-  return { steps, hits, faults };
-}
-
-function simulateEnhancedSecondChance(reference, frameCount) {
-  const frames = Array(frameCount).fill(null);
-  const steps = [];
-  let pointer = 0;
-  let hits = 0;
-  let faults = 0;
-
-  function pickVictimIndex() {
-    for (let pass = 0; pass < 2; pass += 1) {
-      for (let checked = 0; checked < frameCount; checked += 1) {
-        const idx = (pointer + checked) % frameCount;
-        const item = frames[idx];
-        if (!item) return idx;
-        if (item.r === 0 && item.m === pass) {
-          return idx;
-        }
-        if (item.r === 1) item.r = 0;
-      }
-    }
-    return pointer;
-  }
-
-  reference.forEach((request) => {
-    const page = request.page;
-    const write = request.write;
-    const hitIndex = frames.findIndex((item) => item && item.page === page);
-    const hit = hitIndex !== -1;
-
-    if (hit) {
-      hits += 1;
-      frames[hitIndex].r = 1;
-      if (write) frames[hitIndex].m = 1;
-    } else {
-      faults += 1;
-      let idx = frames.findIndex((item) => item === null);
-      if (idx === -1) {
-        idx = pickVictimIndex();
-      }
-      frames[idx] = { page, r: 1, m: write ? 1 : 0 };
-      pointer = (idx + 1) % frameCount;
-    }
-
-    const snapshot = frames.map((item) => (item ? item.page : "-"));
-    steps.push({ page: formatRequest(request), hit, frames: snapshot });
-  });
-
-  return { steps, hits, faults };
-}
-
-function simulatePageBuffering(reference, frameCount, bufferSize) {
-  const frames = Array(frameCount).fill("-");
-  const buffer = [];
-  const steps = [];
-  let pointer = 0;
-  let hits = 0;
-  let faults = 0;
-  let bufferHits = 0;
-  let diskReads = 0;
-
-  function pushToBuffer(page) {
-    if (page === "-" || page === undefined) return;
-    if (!buffer.includes(page)) buffer.push(page);
-    if (buffer.length > bufferSize) buffer.shift();
-  }
-
-  reference.forEach((request) => {
-    const page = request.page;
-    const hit = frames.includes(page);
-
-    if (hit) {
-      hits += 1;
-    } else {
-      faults += 1;
-      const bufIndex = buffer.indexOf(page);
-      if (bufIndex !== -1) {
-        bufferHits += 1;
-        buffer.splice(bufIndex, 1);
-      } else {
-        diskReads += 1;
-      }
-
-      const evicted = frames[pointer];
-      frames[pointer] = page;
-      pushToBuffer(evicted);
-      pointer = (pointer + 1) % frameCount;
-    }
-
-    steps.push({ page: formatRequest(request), hit, frames: [...frames] });
-  });
-
-  return { steps, hits, faults, extra: { bufferHits, diskReads, bufferSize } };
-}
-
-function runSimulation(algorithm, reference, frameCount, bufferSize) {
+function runSimulation(algorithm, reference, frameCount) {
   if (!reference.length || frameCount <= 0) {
     return { steps: [], hits: 0, faults: 0, extra: null };
   }
@@ -265,12 +141,6 @@ function runSimulation(algorithm, reference, frameCount, bufferSize) {
       return simulateLRU(reference, frameCount);
     case "OPTIMAL":
       return simulateOptimal(reference, frameCount);
-    case "SECOND_CHANCE":
-      return simulateSecondChance(reference, frameCount);
-    case "ENHANCED_SECOND_CHANCE":
-      return simulateEnhancedSecondChance(reference, frameCount);
-    case "PAGE_BUFFERING":
-      return simulatePageBuffering(reference, frameCount, bufferSize);
     default:
       return { steps: [], hits: 0, faults: 0, extra: null };
   }
@@ -279,7 +149,6 @@ function runSimulation(algorithm, reference, frameCount, bufferSize) {
 function App() {
   const [algorithm, setAlgorithm] = useState("FIFO");
   const [frameCount, setFrameCount] = useState(3);
-  const [bufferSize, setBufferSize] = useState(3);
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState({ steps: [], hits: 0, faults: 0, extra: null });
@@ -324,20 +193,14 @@ function App() {
       setResult({ steps: [], hits: 0, faults: 0, extra: null });
       return;
     }
-    if (algorithm === "PAGE_BUFFERING" && (Number(bufferSize) < 1 || Number(bufferSize) > 10)) {
-      setError("Buffer size must be between 1 and 10.");
-      setResult({ steps: [], hits: 0, faults: 0, extra: null });
-      return;
-    }
 
     setError("");
-    setResult(runSimulation(algorithm, parsed, Number(frameCount), Number(bufferSize)));
+    setResult(runSimulation(algorithm, parsed, Number(frameCount)));
   }
 
   function handleReset() {
     setAlgorithm("FIFO");
     setFrameCount(3);
-    setBufferSize(3);
     setInput("");
     setError("");
     setResult({ steps: [], hits: 0, faults: 0, extra: null });
@@ -358,9 +221,6 @@ function App() {
               <option value="FIFO">FIFO</option>
               <option value="LRU">LRU</option>
               <option value="OPTIMAL">Optimal</option>
-              <option value="SECOND_CHANCE">Second-Chance</option>
-              <option value="ENHANCED_SECOND_CHANCE">Enhanced Second-Chance</option>
-              <option value="PAGE_BUFFERING">Page-Buffering</option>
             </select>
           </div>
           <div>
@@ -374,19 +234,7 @@ function App() {
               onChange={(e) => setFrameCount(Number(e.target.value))}
             />
           </div>
-          {algorithm === "PAGE_BUFFERING" && (
-            <div>
-              <label>Buffer Size</label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                value={bufferSize}
-                required
-                onChange={(e) => setBufferSize(Number(e.target.value))}
-              />
-            </div>
-          )}
+
           <div style={{ gridColumn: "1 / -1" }}>
             <label>Reference String (page numbers only, spaces or commas)</label>
             <textarea
@@ -478,7 +326,9 @@ function App() {
       <p className="footer-note">
         Tip: For your class sequence with 3 frames, Optimal should produce the lowest page-fault count.
       </p>
-      <p className="credits-note">Done by AFSHEEN FATHIMA AKBAR ALI, AKSHAYA A, BARATHWAJ R</p>
+      <b>
+      <p className="credits-note">Done by AFSHEEN FATHIMA AKBAR ALI, AKSHAYA A, BHARATHWAJ R</p>
+      </b>
     </div>
   );
 }

@@ -35,7 +35,7 @@ body {
 
 .title {
   margin: 0 0 8px;
-  font-size: 1.9rem;
+  font-size: 2.1rem;
   letter-spacing: 0.2px;
 }
 
@@ -68,7 +68,7 @@ body {
 
 label {
   display: block;
-  font-size: 0.92rem;
+  font-size: 1.11rem;
   color: var(--muted);
   margin-bottom: 6px;
 }
@@ -82,7 +82,7 @@ textarea {
   background: var(--soft);
   color: var(--text);
   padding: 10px;
-  font-size: 0.95rem;
+  font-size: 1.14rem;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
@@ -156,7 +156,7 @@ button:disabled {
 
 .stat-value {
   margin-top: 6px;
-  font-size: 1.2rem;
+  font-size: 1.39rem;
   font-weight: bold;
 }
 
@@ -198,13 +198,13 @@ thead th {
 
 .footer-note {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 1.09rem;
 }
 
 .credits-note {
   margin-top: 14px;
   color: #6f8a7e;
-  font-size: 0.82rem;
+  font-size: 1.01rem;
   font-weight: 300;
   text-align: center;
   letter-spacing: 0.2px;
@@ -212,7 +212,7 @@ thead th {
 
 .section-title {
   margin: 0 0 10px;
-  font-size: 1.05rem;
+  font-size: 1.24rem;
 }
 
 .strip-cell {
